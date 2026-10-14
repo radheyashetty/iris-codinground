@@ -1,7 +1,8 @@
-const API_BASE = 'http://localhost:3000';
+const API_BASE = '';
 let currentActorId = null;
 let currentActorRole = null;
 let currentRequestId = null;
+const actorMap = new Map();
 
 // Pipeline order is exact
 const PIPELINE = ['draft', 'submitted', 'manager_approved', 'hr_approved', 'completed'];
@@ -52,7 +53,9 @@ async function loadActors() {
     const select = document.getElementById('actor-select');
     select.innerHTML = '';
 
+    actorMap.clear();
     actors.forEach(actor => {
+      actorMap.set(actor.id, actor.name);
       const option = document.createElement('option');
       option.value = escapeHtml(actor.id);
       option.dataset.role = escapeHtml(actor.role);
@@ -87,7 +90,8 @@ async function loadList() {
   try {
     const statusFilter = document.getElementById('status-filter').value;
     const query = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
-    const requests = await api(`/requests${query}`);
+    const res = await api(`/requests${query}`);
+    const requests = Array.isArray(res) ? res : (res.data || []);
 
     const container = document.getElementById('request-list');
     container.innerHTML = '';
@@ -241,6 +245,9 @@ function renderActions(request) {
     if (currentActorRole !== transition.requiredRole) {
       btn.disabled = true;
       btn.title = `Requires role: ${transition.requiredRole}`;
+    } else if (transition.action === 'submit' && currentActorId !== request.employeeId) {
+      btn.disabled = true;
+      btn.title = 'Only the request owner can submit';
     }
 
     btn.addEventListener('click', () => {
@@ -274,7 +281,7 @@ function renderTimeline(timeline) {
 
     const fromState = escapeHtml(entry.fromState || 'none');
     const toState = escapeHtml(entry.toState);
-    const actorName = escapeHtml(entry.actorName || entry.actorId); // Fallback to id if name not populated by backend
+    const resolvedName = actorMap.get(entry.actorId) || entry.actorName || entry.actorId;
     const actorRole = escapeHtml(entry.actorRole);
     const comment = escapeHtml(entry.comment || 'No comment');
     const date = new Date(entry.timestamp).toLocaleString();
@@ -286,7 +293,7 @@ function renderTimeline(timeline) {
           <strong>${fromState} → ${toState}</strong>
         </div>
         <div class="timeline-meta">
-          ${actorName} (${actorRole}) • ${date}
+          ${escapeHtml(resolvedName)} (${actorRole}) • ${date}
         </div>
         <div class="timeline-comment">"${comment}"</div>
       </div>
@@ -362,7 +369,8 @@ async function createRequest(formData) {
     });
 
   } catch (error) {
-    alert(`Failed to create request: ${error.message}`);
+    const details = error.details ? '\n' + error.details.map(d => `${d.path}: ${d.message}`).join('\n') : '';
+    alert(`Failed to create request: ${error.message || 'Validation error'}${details}`);
   }
 }
 

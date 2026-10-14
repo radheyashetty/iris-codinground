@@ -21,11 +21,11 @@
         <label for="status-filter">Status Filter:</label>
         <select id="status-filter">
           <option value="">All</option>
-          <option value="pending_manager">pending_manager</option>
-          <option value="pending_hr">pending_hr</option>
-          <option value="pending_completion">pending_completion</option>
-          <option value="completed">completed</option>
-          <option value="rejected">rejected</option>
+          <option value="pending_manager">Pending manager</option>
+          <option value="pending_hr">Pending HR</option>
+          <option value="pending_completion">Pending completion</option>
+          <option value="completed">Completed</option>
+          <option value="rejected">Rejected</option>
         </select>
       </div>
 
@@ -45,6 +45,7 @@
             <select id="new-leave-type" name="leaveType" required>
               <option value="annual">Annual</option>
               <option value="sick">Sick</option>
+              <option value="casual">Casual</option>
               <option value="unpaid">Unpaid</option>
             </select>
           </div>
@@ -94,6 +95,6 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
