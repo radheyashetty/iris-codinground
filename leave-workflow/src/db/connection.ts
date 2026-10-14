@@ -33,7 +33,9 @@ export function getDb(): Database.Database {
   instance.pragma('foreign_keys = ON');
 
   // Apply schema
-  const schemaPath = path.join(__dirname, 'schema.sql');
+  const localSchemaPath = path.join(__dirname, 'schema.sql');
+  const srcSchemaPath = path.join(__dirname, '..', '..', 'src', 'db', 'schema.sql');
+  const schemaPath = fs.existsSync(localSchemaPath) ? localSchemaPath : srcSchemaPath;
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   instance.exec(schema);
 

@@ -1,13 +1,14 @@
 /**
  * requestService.test.ts — Service layer unit tests using an in-memory SQLite DB.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
-import { setDb, closeDb } from '../../src/db/connection';
+import { setDb, getDb } from '../../src/db/connection';
 import { seedActors } from '../../src/db/seed';
 import * as requestService from '../../src/services/requestService';
+import * as requestRepository from '../../src/repositories/requestRepository';
 import {
   InvalidTransitionError,
   ForbiddenError,
@@ -206,13 +207,18 @@ describe('transition — role and ownership errors', () => {
 describe('transition — optimistic locking', () => {
   it('version mismatch throws ConcurrentModificationError', () => {
     const req = makeRequest();
-    // Manually bump the version to simulate a concurrent update
-    const { getDb } = require('../../src/db/connection');
-    getDb().prepare('UPDATE leave_requests SET version = version + 1 WHERE id = ?').run(req.id);
+    // Verify requestRepository.updateStatus returns 0 on version mismatch
+    const result = requestRepository.updateStatus(req.id, 'submitted', 999, new Date().toISOString());
+    expect(result).toBe(0);
+
+    // Simulate concurrent modification where updateStatus returns 0 during transition
+    const spy = vi.spyOn(requestRepository, 'updateStatus').mockReturnValueOnce(0);
 
     expect(() =>
       requestService.transition(req.id, { actorId: 'emp-001', action: 'submit', comment: 'Submit' }),
     ).toThrow(ConcurrentModificationError);
+
+    spy.mockRestore();
   });
 });
 
@@ -231,5 +237,25 @@ describe('getTimeline', () => {
     const timeline = requestService.getTimeline(req.id);
     expect(timeline[0].action).toBe('create');
     expect(timeline[1].action).toBe('submit');
+  });
+});
+
+// ─── Append-only triggers ───────────────────────────────────────────────────
+
+describe('transitions table append-only triggers', () => {
+  it('throws on UPDATE on transitions table', () => {
+    const req = makeRequest();
+    const db = getDb();
+    expect(() => {
+      db.prepare("UPDATE transitions SET comment = 'tampered' WHERE request_id = ?").run(req.id);
+    }).toThrow(/transitions is append-only/);
+  });
+
+  it('throws on DELETE on transitions table', () => {
+    const req = makeRequest();
+    const db = getDb();
+    expect(() => {
+      db.prepare('DELETE FROM transitions WHERE request_id = ?').run(req.id);
+    }).toThrow(/transitions is append-only/);
   });
 });

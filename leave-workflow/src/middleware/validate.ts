@@ -25,7 +25,7 @@ export function validate(schema: ZodSchema, target: Target = 'body') {
       throw new ValidationError('Validation failed', details);
     }
     // Replace the target with the coerced/defaulted values from Zod
-    (req as Record<string, unknown>)[target] = result.data;
+    (req as unknown as Record<string, unknown>)[target] = result.data;
     next();
   };
 }
