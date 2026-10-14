@@ -51,29 +51,45 @@ async function loadActors() {
   try {
     const actors = await api('/actors');
     const select = document.getElementById('actor-select');
+    const empSelect = document.getElementById('new-employee-id');
     select.innerHTML = '';
+    if (empSelect) empSelect.innerHTML = '';
 
     actorMap.clear();
     actors.forEach(actor => {
-      actorMap.set(actor.id, actor.name);
+      actorMap.set(actor.id, actor);
       const option = document.createElement('option');
       option.value = escapeHtml(actor.id);
       option.dataset.role = escapeHtml(actor.role);
       option.textContent = `${escapeHtml(actor.id)} — ${escapeHtml(actor.name)} (${escapeHtml(actor.role)})`;
       select.appendChild(option);
+
+      // Populate new-employee-id with employee actors only
+      if (empSelect && actor.role === 'employee') {
+        const empOpt = document.createElement('option');
+        empOpt.value = escapeHtml(actor.id);
+        empOpt.textContent = `${escapeHtml(actor.id)} — ${escapeHtml(actor.name)} (employee)`;
+        empSelect.appendChild(empOpt);
+      }
     });
 
     if (actors.length > 0) {
       currentActorId = actors[0].id;
       currentActorRole = actors[0].role;
-      document.getElementById('new-employee-id').value = currentActorId;
+      if (empSelect && currentActorRole === 'employee') {
+        empSelect.value = currentActorId;
+      }
     }
 
     select.addEventListener('change', (e) => {
       currentActorId = e.target.value;
-      const selectedOption = e.target.options[e.target.selectedIndex];
-      currentActorRole = selectedOption.dataset.role;
-      document.getElementById('new-employee-id').value = currentActorId;
+      const actor = actorMap.get(currentActorId);
+      currentActorRole = actor ? actor.role : null;
+
+      // If current actor is an employee, auto-select them in the form
+      if (empSelect && currentActorRole === 'employee') {
+        empSelect.value = currentActorId;
+      }
 
       // Re-render right panel if a request is selected to update button states
       if (currentRequestId) {
@@ -124,6 +140,24 @@ async function loadList() {
 
       container.appendChild(card);
     });
+
+    if (currentRequestId) {
+      const exists = requests.some(r => r.id === currentRequestId);
+      if (exists) {
+        selectRequest(currentRequestId);
+      } else if (requests.length > 0) {
+        selectRequest(requests[0].id);
+      } else {
+        currentRequestId = null;
+        document.getElementById('request-detail').classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+      }
+    } else if (requests.length > 0) {
+      selectRequest(requests[0].id);
+    } else {
+      document.getElementById('request-detail').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+    }
   } catch (error) {
     console.error('Failed to load request list:', error);
   }
@@ -219,9 +253,20 @@ function renderActions(request) {
   errorDiv.textContent = '';
 
   if (!request.allowedTransitions || request.allowedTransitions.length === 0) {
-    container.innerHTML = '<p style="color: #666; font-style: italic;">No actions available.</p>';
+    container.innerHTML = '<p style="color: #666; font-style: italic;">No actions available for this request.</p>';
     return;
   }
+
+  // Current actor indicator
+  const currentActor = actorMap.get(currentActorId);
+  const actorName = currentActor ? currentActor.name : currentActorId;
+  const statusDiv = document.createElement('div');
+  statusDiv.style.cssText = 'margin-bottom: 12px; font-size: 0.9rem; color: #495057; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;';
+  statusDiv.innerHTML = `
+    <span>Acting as: <strong>${escapeHtml(actorName)}</strong> (<em>${escapeHtml(currentActorId)}</em>)</span>
+    <span class="badge badge-submitted">${escapeHtml(currentActorRole || 'unknown')}</span>
+  `;
+  container.appendChild(statusDiv);
 
   const textarea = document.createElement('textarea');
   textarea.id = 'transition-comment';
@@ -230,6 +275,8 @@ function renderActions(request) {
 
   const btnContainer = document.createElement('div');
   btnContainer.className = 'action-buttons';
+
+  let disabledReasons = [];
 
   request.allowedTransitions.forEach(transition => {
     const btn = document.createElement('button');
@@ -240,14 +287,18 @@ function renderActions(request) {
     if (transition.action === 'reject') btnClass = 'btn-reject';
 
     btn.className = `btn ${btnClass}`;
-    btn.textContent = actionLabel;
+    btn.textContent = `${actionLabel} (${transition.requiredRole})`;
 
     if (currentActorRole !== transition.requiredRole) {
       btn.disabled = true;
-      btn.title = `Requires role: ${transition.requiredRole}`;
+      const r = `Requires role: ${transition.requiredRole}`;
+      btn.title = r;
+      if (!disabledReasons.includes(r)) disabledReasons.push(r);
     } else if (transition.action === 'submit' && currentActorId !== request.employeeId) {
       btn.disabled = true;
-      btn.title = 'Only the request owner can submit';
+      const r = `Only the request owner (${request.employeeId}) can submit`;
+      btn.title = r;
+      if (!disabledReasons.includes(r)) disabledReasons.push(r);
     }
 
     btn.addEventListener('click', () => {
@@ -258,6 +309,13 @@ function renderActions(request) {
   });
 
   container.appendChild(btnContainer);
+
+  if (disabledReasons.length > 0) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'margin-top: 10px; font-size: 0.85rem; color: #92400e; background: #fef3c7; padding: 8px 12px; border-radius: 6px; border: 1px solid #fde68a;';
+    hint.innerHTML = `⚠️ <strong>Role restriction:</strong> ${escapeHtml(disabledReasons.join('. '))}. Switch <em>Acting as</em> in the top header to an authorized user to proceed.`;
+    container.appendChild(hint);
+  }
 }
 
 // Required Function 8: renderTimeline
@@ -281,7 +339,8 @@ function renderTimeline(timeline) {
 
     const fromState = escapeHtml(entry.fromState || 'none');
     const toState = escapeHtml(entry.toState);
-    const resolvedName = actorMap.get(entry.actorId) || entry.actorName || entry.actorId;
+    const actorObj = actorMap.get(entry.actorId);
+    const resolvedName = actorObj ? actorObj.name : (entry.actorName || entry.actorId);
     const actorRole = escapeHtml(entry.actorRole);
     const comment = escapeHtml(entry.comment || 'No comment');
     const date = new Date(entry.timestamp).toLocaleString();
@@ -353,7 +412,14 @@ async function createRequest(formData) {
     });
 
     document.getElementById('new-request-form').reset();
-    document.getElementById('new-employee-id').value = currentActorId; // restore readonly value
+    const empSelect = document.getElementById('new-employee-id');
+    if (empSelect) {
+      if (currentActorRole === 'employee') {
+        empSelect.value = currentActorId;
+      } else if (empSelect.options.length > 0) {
+        empSelect.selectedIndex = 0;
+      }
+    }
 
     await loadList();
 

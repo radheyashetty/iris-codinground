@@ -21,7 +21,8 @@ interface RequestResult {
   }[];
 }
 
-async function request(path: string, options: RequestInit = {}): Promise<{ status: number; body: any }> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function request(path: string, options: RequestInit = {}): Promise<{ status: number; body: Record<string, any> }> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -30,6 +31,7 @@ async function request(path: string, options: RequestInit = {}): Promise<{ statu
     },
   });
   const text = await res.text();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let body: any = null;
   try {
     body = JSON.parse(text);
@@ -90,7 +92,7 @@ async function runAcceptance(): Promise<void> {
   assert(illegalApprove.status === 422, 'Approving draft returns 422');
   assert(illegalApprove.body.error.code === 'INVALID_TRANSITION', 'Error code is INVALID_TRANSITION');
   assert(
-    illegalApprove.body.error.allowedTransitions.some((t: any) => t.action === 'submit'),
+    illegalApprove.body.error.allowedTransitions.some((t: { action: string }) => t.action === 'submit'),
     'allowedTransitions lists submit',
   );
 
@@ -287,7 +289,7 @@ async function runAcceptance(): Promise<void> {
   const filterPendingManager = await request('/requests?status=pending_manager');
   assert(filterPendingManager.status === 200, 'GET /requests?status=pending_manager returns 200');
   assert(
-    filterPendingManager.body.data.every((r: any) => r.status === 'submitted'),
+    filterPendingManager.body.data.every((r: { status: string }) => r.status === 'submitted'),
     'All returned records have status submitted',
   );
 
