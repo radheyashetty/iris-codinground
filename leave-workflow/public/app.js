@@ -101,6 +101,23 @@ async function loadActors() {
   }
 }
 
+function switchToActor(actorId) {
+  const select = document.getElementById('actor-select');
+  if (select) {
+    select.value = actorId;
+    currentActorId = actorId;
+    const actor = actorMap.get(currentActorId);
+    currentActorRole = actor ? actor.role : null;
+    const empSelect = document.getElementById('new-employee-id');
+    if (empSelect && currentActorRole === 'employee') {
+      empSelect.value = currentActorId;
+    }
+    if (currentRequestId) {
+      selectRequest(currentRequestId);
+    }
+  }
+}
+
 // Required Function 4: loadList
 async function loadList() {
   try {
@@ -267,6 +284,71 @@ function renderActions(request) {
     <span class="badge badge-submitted">${escapeHtml(currentActorRole || 'unknown')}</span>
   `;
   container.appendChild(statusDiv);
+
+  // Stage explanation & Quick switcher
+  const stageInfoDiv = document.createElement('div');
+  stageInfoDiv.style.cssText = 'padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 0.9rem; line-height: 1.4;';
+
+  let targetActorId = null;
+  let targetActorName = null;
+  let targetActionDesc = '';
+
+  if (request.status === 'draft') {
+    const owner = actorMap.get(request.employeeId);
+    const ownerName = owner ? owner.name : request.employeeId;
+    targetActorId = request.employeeId;
+    targetActorName = `${ownerName} (${request.employeeId})`;
+    targetActionDesc = `This request is in <strong>Draft</strong>. It must first be <strong>Submitted</strong> by the employee <em>${escapeHtml(targetActorName)}</em> before a manager can approve or reject it.`;
+  } else if (request.status === 'submitted') {
+    const mgr = Array.from(actorMap.values()).find(a => a.role === 'manager');
+    targetActorId = mgr ? mgr.id : 'mgr-001';
+    targetActorName = mgr ? `${mgr.name} (${mgr.id}, Manager)` : 'Manager';
+    targetActionDesc = `This request has been submitted and is waiting for <strong>Manager Review</strong> by <em>${escapeHtml(targetActorName)}</em>.`;
+  } else if (request.status === 'manager_approved') {
+    const hr = Array.from(actorMap.values()).find(a => a.role === 'hr');
+    targetActorId = hr ? hr.id : 'hr-001';
+    targetActorName = hr ? `${hr.name} (${hr.id}, HR)` : 'HR';
+    targetActionDesc = `Manager approved! It is now waiting for <strong>HR Approval</strong> by <em>${escapeHtml(targetActorName)}</em>.`;
+  } else if (request.status === 'hr_approved') {
+    const hr = Array.from(actorMap.values()).find(a => a.role === 'hr');
+    targetActorId = hr ? hr.id : 'hr-001';
+    targetActorName = hr ? `${hr.name} (${hr.id}, HR)` : 'HR';
+    targetActionDesc = `HR approved (stage 1). It is now waiting for <strong>Final Completion</strong> by <em>${escapeHtml(targetActorName)}</em>.`;
+  }
+
+  if (targetActionDesc) {
+    const isAuthorized = (request.status === 'draft' && currentActorId === request.employeeId) ||
+                         (request.status === 'submitted' && currentActorRole === 'manager') ||
+                         ((request.status === 'manager_approved' || request.status === 'hr_approved') && currentActorRole === 'hr');
+
+    if (isAuthorized) {
+      stageInfoDiv.style.backgroundColor = '#ecfdf5';
+      stageInfoDiv.style.border = '1px solid #a7f3d0';
+      stageInfoDiv.style.color = '#065f46';
+      stageInfoDiv.innerHTML = `✅ <strong>Your turn:</strong> ${targetActionDesc} Enter a comment below and click the action button.`;
+    } else {
+      stageInfoDiv.style.backgroundColor = '#fffbeb';
+      stageInfoDiv.style.border = '1px solid #fde68a';
+      stageInfoDiv.style.color = '#92400e';
+      stageInfoDiv.innerHTML = `
+        <div style="margin-bottom: 8px;">ℹ️ ${targetActionDesc}</div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span>To proceed with this step:</span>
+          <button type="button" class="btn btn-quick-switch" style="padding: 4px 10px; font-size: 0.82rem; background: #d97706; color: white;">
+            Switch to ${escapeHtml(targetActorName)}
+          </button>
+        </div>
+      `;
+    }
+    container.appendChild(stageInfoDiv);
+
+    const switchBtn = stageInfoDiv.querySelector('.btn-quick-switch');
+    if (switchBtn && targetActorId) {
+      switchBtn.addEventListener('click', () => {
+        switchToActor(targetActorId);
+      });
+    }
+  }
 
   const textarea = document.createElement('textarea');
   textarea.id = 'transition-comment';
