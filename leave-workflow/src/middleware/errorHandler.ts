@@ -21,6 +21,19 @@ export function errorHandler(logger: Logger) {
   return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
     const requestId = req.requestId ?? 'unknown';
 
+    // Handle malformed JSON body from body-parser
+    if (err instanceof SyntaxError && err.message.includes('JSON')) {
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Malformed JSON payload',
+          details: [{ path: 'body', message: err.message }],
+          requestId,
+        },
+      });
+      return;
+    }
+
     if (err instanceof ValidationError) {
       res.status(400).json({
         error: {
