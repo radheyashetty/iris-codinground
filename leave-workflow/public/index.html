@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leave Request Workflow</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Leave Request Workflow</h1>
+    <div class="actor-select-container">
+      <label for="actor-select">Acting as:</label>
+      <select id="actor-select"></select>
+    </div>
+  </header>
+
+  <main class="layout-container">
+    <aside class="left-panel">
+      <div class="filter-container">
+        <label for="status-filter">Status Filter:</label>
+        <select id="status-filter">
+          <option value="">All</option>
+          <option value="pending_manager">pending_manager</option>
+          <option value="pending_hr">pending_hr</option>
+          <option value="pending_completion">pending_completion</option>
+          <option value="completed">completed</option>
+          <option value="rejected">rejected</option>
+        </select>
+      </div>
+
+      <div class="request-list-container">
+        <div id="request-list" class="request-list"></div>
+      </div>
+
+      <div class="new-request-container">
+        <h3>New Request</h3>
+        <form id="new-request-form">
+          <div class="form-group">
+            <label for="new-employee-id">Employee ID:</label>
+            <input type="text" id="new-employee-id" name="employeeId" readonly>
+          </div>
+          <div class="form-group">
+            <label for="new-leave-type">Leave Type:</label>
+            <select id="new-leave-type" name="leaveType" required>
+              <option value="annual">Annual</option>
+              <option value="sick">Sick</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-start-date">Start Date:</label>
+            <input type="date" id="new-start-date" name="startDate" required>
+          </div>
+          <div class="form-group">
+            <label for="new-end-date">End Date:</label>
+            <input type="date" id="new-end-date" name="endDate" required>
+          </div>
+          <div class="form-group">
+            <label for="new-reason">Reason:</label>
+            <input type="text" id="new-reason" name="reason" required>
+          </div>
+          <button type="submit" class="btn btn-submit">Create Request</button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="right-panel">
+      <div id="request-detail" class="request-detail hidden">
+        <div class="detail-header">
+          <h2 id="detail-title">Request Details</h2>
+        </div>
+
+        <div id="rejected-banner" class="alert alert-red hidden">❌ Request Rejected</div>
+
+        <div class="stepper-container">
+          <ol id="stepper" class="stepper"></ol>
+        </div>
+
+        <div class="actions-container">
+          <h3>Actions</h3>
+          <div id="action-error" class="alert alert-red hidden"></div>
+          <div id="actions-content"></div>
+        </div>
+
+        <div class="timeline-container">
+          <h3>Timeline</h3>
+          <div id="timeline"></div>
+        </div>
+      </div>
+      <div id="empty-state" class="empty-state">
+        <p>Select a request to view details</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
